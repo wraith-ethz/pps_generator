@@ -55,7 +55,7 @@ enum hrtimer_restart  _PpsTimerHandler(struct hrtimer *timer)
     gpio_set_value(ppsGPIO, 1);
 
     // save the current time
-    ktime_get_ts64( &current_time );
+    ktime_get_real_ts64( &current_time );
 
     // calculate the difference to one whole second
     timediff = 1000000000 - current_time.tv_nsec;
@@ -119,7 +119,7 @@ static int __init pps_init(void)
     pps_timer.function = &_PpsTimerHandler;
 
     // check the difference to the current time and start the timer
-    ktime_get_ts64( &current_time );
+    ktime_get_real_ts64( &current_time );
     timediff = 1000000000 - current_time.tv_nsec;
     hrtimer_start( &pps_timer, ns_to_ktime(timediff), HRTIMER_MODE_REL);
 

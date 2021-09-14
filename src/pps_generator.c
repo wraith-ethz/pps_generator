@@ -17,8 +17,8 @@ MODULE_AUTHOR("Matthias Mueller");
 MODULE_DESCRIPTION("Raspberry Pi kernel module to generate a pulse per second signal for external time synchronisation");
 MODULE_VERSION("0.01");
 
-#define PPS_GPIO                5
-#define LOCK_GPIO               6
+#define PPS_GPIO                24
+#define LOCK_GPIO               23
 
 #define N_SHIFT            1
 #define LOCKED_THRESHOLD_NS    100000
@@ -60,19 +60,6 @@ enum hrtimer_restart  _PpsTimerHandler(struct hrtimer *timer)
     // calculate the difference to one whole second
     timediff = 1000000000 - current_time.tv_nsec;
 
-    // check if the current time or the difference is bigger, and add / subtract the value accordingly
-    if( current_time.tv_nsec < timediff)
-    {
-        pps_interval_ns = pps_interval_ns - (current_time.tv_nsec >> N_SHIFT);
-    }
-    else
-    {
-        pps_interval_ns = pps_interval_ns + (timediff >> N_SHIFT);
-    }
-
-    // restart the pps timer
-    hrtimer_forward_now(&pps_timer, ns_to_ktime(pps_interval_ns));
-
     // start the pin on timer, until it will be set to zero again
     hrtimer_start(&pin_on_timer, ms_to_ktime(pin_on_time_ms), HRTIMER_MODE_REL);
 
@@ -80,14 +67,36 @@ enum hrtimer_restart  _PpsTimerHandler(struct hrtimer *timer)
     if( (current_time.tv_nsec < LOCKED_THRESHOLD_NS) || (timediff < LOCKED_THRESHOLD_NS) )
     {
         gpio_set_value(lockedGPIO, 1);
+
+    	// check if the current time or the difference is bigger, and add / subtract the value accordingly
+    	if( current_time.tv_nsec < timediff)
+    	{
+        	pps_interval_ns = pps_interval_ns - (current_time.tv_nsec >> N_SHIFT);
+    	}
+    	else
+    	{
+        	pps_interval_ns = pps_interval_ns + (timediff >> N_SHIFT);
+    	}
+
+	// restart the pps timer
+	hrtimer_forward_now(&pps_timer, ns_to_ktime(pps_interval_ns));
     }
     else
     {
         gpio_set_value(lockedGPIO, 0);
+
+	// reset the time interval
+	pps_interval_ns = 1000000000;
+
+	// restart the pps timer with the difference
+	hrtimer_forward_now(&pps_timer, ns_to_ktime(timediff));
     }
 
+    // restart the pps timer
+    hrtimer_forward_now(&pps_timer, ns_to_ktime(pps_interval_ns));
+
    // printk(KERN_INFO "Timer Handler called\n");
-   // printk(KERN_INFO "timediff: %li, pps_interval_ns: %li, actual ns: %li, jiffies: %li\n", timediff, pps_interval_ns, current_time.tv_nsec, nsecs_to_jiffies(pps_interval_ns));
+   // printk(KERN_INFO "timediff: %li, pps_interval_ns: %li, actual ns: %li\n", timediff, pps_interval_ns, current_time.tv_nsec);
 
     return HRTIMER_RESTART;
 }
